@@ -18,23 +18,10 @@ np.set_printoptions(suppress=True, linewidth=200, precision=2)
 floatX = 'float32'
 
 
-@click.command()
-@click.option('--options', '-o', multiple=True, nargs=2, type=click.Tuple([str, str]))
-@click.option('--save/--no-save', '-s', default=False, help='Save images in ./render/...')
-def run(options, save):
+def run():
     dir_path = os.path.dirname(os.path.realpath(__file__))
     cfg_file = os.path.join(dir_path, 'config_atari.yaml')
     params = yaml.safe_load(open(cfg_file, 'r'))
-
-    # replacing params with command line options
-    for opt in options:
-        assert opt[0] in params
-        dtype = type(params[opt[0]])
-        if dtype == bool:
-            new_opt = False if opt[1] != 'True' else True
-        else:
-            new_opt = dtype(opt[1])
-        params[opt[0]] = new_opt
 
     print('\n')
     print(Font.bold + Font.red + 'Parameters ' + Font.end)
@@ -44,15 +31,7 @@ def run(options, save):
 
     np.random.seed(seed=params['random_seed'])
     random_state = np.random.RandomState(params['random_seed'])
-    if save:
-        record_dir = os.path.join(os.getcwd(), 'render\montezuma_')
-        i = 0
-        while os.path.exists(record_dir + str(i)):
-            i += 1
-        record_dir = record_dir + str(i)
-        os.mkdir(record_dir)
-    else:
-        record_dir = None
+
     if params['game_name'] == 'montezuma_revenge':
         ch_weights = [1, 0, 0]  # only using red
     elif params['game_name'] in ['frostbite', 'seaquest']:
