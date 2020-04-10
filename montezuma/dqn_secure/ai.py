@@ -189,10 +189,10 @@ class AI(object):
         return buffer_._make(contents)
 
     def dump_network(self, weights_file_path='q_network_weights.h5', overwrite=True):
-        self.network.save_weights(weights_file_path, overwrite=overwrite)
+        torch.save(self.network.state_dict(), weights_file_path)
 
     def load_weights(self, weights_file_path='q_network_weights.h5', target=False):
-        self.network.load_weights(weights_file_path)
+        self.network.load_state_dict(torch.load(weights_file_path))
         if target:
             self.target_network_update()
 
