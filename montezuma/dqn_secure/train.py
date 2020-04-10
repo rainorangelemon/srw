@@ -8,13 +8,11 @@ import sys
 ROOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
 OUTPUT_DIR = ROOT_DIR
 sys.path.append(ROOT_DIR)
-os.environ['KERAS_BACKEND'] = 'theano'
-import keras.backend as K
-K.set_image_dim_ordering('th')
 
 from lib.utils import Font
 from dqn_secure.experiment import DQNExperiment
 from lib.utils import ExperienceReplay
+from environments.atari_env import AtariEnv
 
 np.set_printoptions(suppress=True, linewidth=200, precision=2)
 floatX = 'float32'
@@ -55,7 +53,6 @@ def run(options, save):
         os.mkdir(record_dir)
     else:
         record_dir = None
-    from environments.atari import AtariEnv
     if params['game_name'] == 'montezuma_revenge':
         ch_weights = [1, 0, 0]  # only using red
     elif params['game_name'] in ['frostbite', 'seaquest']:
@@ -64,10 +61,10 @@ def run(options, save):
         ch_weights = [0.3333, 0.3333, 0.3333]
     else:
         ch_weights = [0.5870, 0.2989, 0.1140]
+
+    # TODO: maybe ch_weights helps
     env = AtariEnv(frame_skip=params['frame_skip'], repeat_action_probability=params['repeat_action_probability'],
-                   state_shape=params['state_shape'], rom_path=os.path.join(ROOT_DIR, params['rom_path']),
-                   game_name=params['game_name'], rendering=params['test'], random_state=random_state,
-                   record_dir=record_dir, channel_weights=ch_weights)
+                    game=params['game_name'])
 
     from dqn_secure.ai import AI  # we need to import after ALE due to tensorflow/cv2 conflicts
     rewards_list = []
@@ -75,31 +72,31 @@ def run(options, save):
         print('\n')
         print(Font.bold + Font.red + '>>>>> Experiment ', ex, ' >>>>>' + Font.end)
         print('\n')
-        replay_buffer_exploit = ExperienceReplay(max_size=params['replay_max_size'], history_len=params['history_len'],
-                                                 state_shape=env.state_shape, action_dim=params['action_dim'],
+        replay_buffer_exploit = ExperienceReplay(max_size=params['replay_max_size'],
+                                                 state_shape=env.observation_space.shape, action_dim=params['action_dim'],
                                                  reward_dim=params['reward_dim'])
         if params['use_exploit_btstrap_corr'] == True:
             btstrap_corr = [0, 100]
         else:
             btstrap_corr = []
-        ai = AI(state_shape=env.state_shape, nb_actions=env.nb_actions, action_dim=params['action_dim'],
+
+        ai = AI(state_shape=env.observation_space.shape, nb_actions=env.action_space.n, action_dim=params['action_dim'],
                 reward_dim=params['reward_dim'], no_network=False, history_len=params['history_len'],
                 gamma=params['gamma'], learning_rate=params['learning_rate'],
                 minibatch_size=params['minibatch_size'], update_freq=params['update_freq'],
-                learning_frequency=params['learning_frequency'], ddqn=params['ddqn'],
-                network_size=params['exploit_network_size'], normalize=params['normalize'],
+                learning_frequency=params['learning_frequency'], ddqn=params['ddqn'], normalize=params['normalize'],
                 replay_buffer=replay_buffer_exploit, bootstrap_corr=btstrap_corr, rng=random_state)
+
         if params['secure'] == True:
             # AI for explore (by definition): gamma=1.0 ; method=DDQN ; reward -1 for bad term, zero otherwise
             replay_buffer_explore = ExperienceReplay(max_size=params['replay_max_size'],
-                                                     history_len=params['history_len'],
-                                                     state_shape=env.state_shape, action_dim=params['action_dim'],
+                                                     state_shape=env.observation_space.shape, action_dim=params['action_dim'],
                                                      reward_dim=params['reward_dim'])
-            ai_explore = AI(state_shape=env.state_shape, nb_actions=env.nb_actions, action_dim=params['action_dim'],
+            ai_explore = AI(state_shape=env.observation_space.shape, nb_actions=env.action_space.n, action_dim=params['action_dim'],
                             reward_dim=params['reward_dim'], no_network=False, history_len=params['history_len'],
                             gamma=1.0, learning_rate=params['learning_rate'], minibatch_size=params['minibatch_size'],
                             update_freq=params['update_freq'], learning_frequency=params['learning_frequency'],
-                            ddqn=True, network_size=params['exploit_network_size'], normalize=params['normalize'],
+                            ddqn=True, normalize=params['normalize'],
                             replay_buffer=replay_buffer_explore, bootstrap_corr=[-1, 0], rng=random_state)
         else:
             ai_explore = None

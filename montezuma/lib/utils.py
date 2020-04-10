@@ -59,7 +59,6 @@ class ExperienceReplay(object):
         self.head = 0
         self.tail = 0
         self.max_size = max_size
-        self.history_len = history_len
         self.state_shape = state_shape
         self.action_dim = action_dim
         self.reward_dim = reward_dim
@@ -77,8 +76,8 @@ class ExperienceReplay(object):
             self.rewards = np.zeros((self.max_size, self.reward_dim), dtype='float32')
 
     def _init_batch(self, number):
-        self.s = np.zeros([number] + [self.history_len] + list(self.state_shape), dtype=self.states[0].dtype)
-        self.s2 = np.zeros([number] + [self.history_len] + list(self.state_shape), dtype=self.states[0].dtype)
+        self.s = np.zeros([number] + list(self.state_shape), dtype=self.states[0].dtype)
+        self.s2 = np.zeros([number] + list(self.state_shape), dtype=self.states[0].dtype)
         self.t = np.zeros(number, dtype='bool')
         action_indicator = self.actions[0]
         if self.actions.ndim == 1:
@@ -106,19 +105,20 @@ class ExperienceReplay(object):
     def _get_transition(self):
         sample_success = False
         while not sample_success:
-            randint = np.random.randint(self.head, self.head + self.size - self.history_len)
-            state_indices = np.arange(randint, randint + self.history_len)
+            randint = np.random.randint(self.head, self.head + self.size - 1)
+            state_indices = randint
             next_state_indices = state_indices + 1
-            transition_index = randint + self.history_len - 1
+            transition_index = randint
             a_axis = None if self.action_dim == 1 else 0
             r_axis = None if self.reward_dim == 1 else 0
-            if not np.any(self.terms.take(state_indices[:-1], mode='wrap')):
+            if not np.any(self.terms.take(state_indices, mode='wrap')):
                 s = self.states.take(state_indices, mode='wrap', axis=0)
                 a = self.actions.take(transition_index, mode='wrap', axis=a_axis)
                 r = self.rewards.take(transition_index, mode='wrap', axis=r_axis)
                 t = self.terms.take(transition_index, mode='wrap')
                 s2 = self.states.take(next_state_indices, mode='wrap', axis=0)
                 sample_success = True
+        # check the shape of s, a, ... should be (4, 104, 80)
         return s, a, r, s2, t
 
     def add(self, s, a, r, t):

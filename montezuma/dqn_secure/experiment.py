@@ -49,7 +49,7 @@ class DQNExperiment(object):
         self.score_agent_window = np.zeros(score_window_size)
         self.steps_agent_window = np.zeros(score_window_size)
         self.replay_min_size = max(self.ai.minibatch_size, replay_min_size)
-        self.last_state = np.empty(tuple([self.history_len] + self.env.state_shape), dtype=np.uint8)
+        self.last_state = np.empty(self.env.observation_space.shape, dtype=np.uint8)
         self.goal_ = 0
 
     def do_epochs(self, number=1, steps_per_epoch=10000, is_learning=True, is_testing=True, steps_per_test=10000):
@@ -183,7 +183,6 @@ class DQNExperiment(object):
 
     def _step(self, evaluate=False, explore=True):
         self.last_episode_steps += 1
-        prev_lives = self.env.get_lives()
         if bool(self.rng.binomial(1, self.epsilon)) and explore:  # safe exploration
             if self.secure:
                 action = self.ai_explore.get_secure_uniform_action(self.last_state)
@@ -196,17 +195,17 @@ class DQNExperiment(object):
                 if action not in actions and len(actions) > 0:
                     action = self.rng.choice(actions)  # prevents unsafe greedy actions
 
-        new_obs, reward, game_over, _ = self.env.step(action)
+        new_obs, reward, game_over, info = self.env.step(action)
         if new_obs.ndim == 1 and len(self.env.state_shape) == 2:
             new_obs = new_obs.reshape(self.env.state_shape)
-        if self.env.get_lives() <= 1:  # to avoid issues with the last life
+        if self.env.ale.lives() <= 1:  # to avoid issues with the last life
             game_over = True
         # NOTE: `game_over` controls when episode is done,
         #       `explore/exploit_term` specify respectively terminal states for explore and exploit AI's.
         exploit_term = game_over
         explore_term = False
         explore_reward = 0.0
-        if self.env.get_lives() < prev_lives or reward < 0:
+        if info.lost_life or reward < 0:
             explore_reward = -1.0
             explore_term = True
         if reward > 0:
@@ -214,9 +213,9 @@ class DQNExperiment(object):
         if reward > 0 or explore_reward < 0:
             temp_last_state = self.last_state.copy()
         if not evaluate:
-            self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward, t=exploit_term)
+            self.ai.transitions.add(s=self.last_state.astype('float32'), a=action, r=reward, t=exploit_term)
             if self.secure and self.exploration_learning:
-                self.ai_explore.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=explore_reward,
+                self.ai_explore.transitions.add(s=self.last_state.astype('float32'), a=action, r=explore_reward,
                                                 t=explore_term)
             if self.annealing and self.total_training_steps >= self.replay_min_size:
                 self.anneal_eps()
@@ -245,19 +244,10 @@ class DQNExperiment(object):
             for i in range(num_nullops - self.history_len):
                 self.env.step(0)
 
-        for i in range(self.history_len):
-            if i > 0:
-                self.env.step(0)
-            obs = self.env.get_state()
-            if obs.ndim == 1 and len(self.env.state_shape) == 2:
-                obs = obs.reshape(self.env.state_shape)
-            self.last_state[i] = obs
+        self.last_state = self.env.get_obs()
 
     def _update_state(self, new_obs):
-        temp_buffer = np.empty(self.last_state.shape, dtype=np.uint8)
-        temp_buffer[:-1] = self.last_state[-self.history_len + 1:]
-        temp_buffer[-1] = new_obs
-        self.last_state = temp_buffer
+        self.last_state = new_obs
 
     def anneal_eps(self):
         if self.total_training_steps > self.annealing_start:

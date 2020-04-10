@@ -1,22 +1,21 @@
 from copy import deepcopy
 import numpy as np
 
-from keras import backend as K
-from keras.optimizers import RMSprop
-
 from lib.utils import ExperienceReplay
-from lib.keras_utils import slice_tensor_tensor, clipped_sum_error
-from dqn_secure.model import build_large_cnn
+from lib.torch_utils import slice_tensor_tensor, clipped_sum_error
+from dqn_secure.model import AtariDqnModel
+import torch
 
 import logging
 logger = logging.getLogger(__name__)
-floatX = 'float32'
+
+# use RMSProp
 
 
 class AI(object):
     def __init__(self, state_shape, nb_actions, action_dim, reward_dim, no_network=False, history_len=1, gamma=.99,
                  learning_rate=0.00025, minibatch_size=32, update_freq=50, learning_frequency=1, ddqn=False,
-                 network_size='small', normalize=1., replay_buffer=None, bootstrap_corr=(), rng=None):
+                 normalize=1., replay_buffer=None, bootstrap_corr=(), rng=None, device="cpu"):
         self.rng = rng
         self.history_len = history_len
         self.state_shape = state_shape
@@ -26,7 +25,6 @@ class AI(object):
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.minibatch_size = minibatch_size
-        self.network_size = network_size
         self.update_freq = update_freq
         self.update_counter = 0
         self.normalize = normalize
@@ -35,6 +33,7 @@ class AI(object):
         self.rewarding_transitions = []
         self.ddqn = ddqn
         self.bootstrap_corr = bootstrap_corr
+        self.device = device
         if not no_network:
             self.network = self._build_network()
             self.target_network = self._build_network()
@@ -42,73 +41,67 @@ class AI(object):
         else:
             self.network = None
             self.target_network = None
+        self.optimizer = torch.optim.RMSprop(self.network.parameters(), lr=self.learning_rate, alpha=.95, eps=1e-7)
         self._compile_learning()
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         logger.warning('Compiled Model and Learning.')
 
     def _build_network(self):
         """ returns the keras nn compiled model """
-        if self.network_size == 'large':
-            return build_large_cnn(self.state_shape, self.history_len, self.nb_actions)
-        else:
-            raise NotImplementedError
+        return AtariDqnModel(self.state_shape, self.nb_actions)
 
     def _compile_learning(self):
-        # Tensor Variables
-        s = K.placeholder(shape=tuple([None] + [self.history_len] + self.state_shape))
-        a = K.placeholder(ndim=1, dtype='int32')
-        r = K.placeholder(ndim=1, dtype='float32')
-        s2 = K.placeholder(shape=tuple([None] + [self.history_len] + self.state_shape))
-        t = K.placeholder(ndim=1, dtype='float32')
 
+        self.predict_network = lambda x: self.network(x)
+        self.predict_target = lambda x: self.target_network(x)
+        self.update_weights = lambda x: self.weight_transfer(self.network, self.target_network)
+
+    def _train_on_batch(self, s, a, r, s2, t):
+        a = a.long()
         # Q(s, a)
-        q = self.network(s / self.normalize)
+        q = self.network(s)
         preds = slice_tensor_tensor(q, a)
 
         # r + (1 - t) * gamma * max_a(Q'(s'))
-        q2 = self.target_network(s2 / self.normalize)
+        q2 = self.target_network(s2)
         if self.ddqn:
-            q2_net = K.stop_gradient(self.network(s2 / self.normalize))
-            a_max = K.argmax(q2_net, axis=1)
+            q2_net = self.network(s2).detach()
+            a_max = torch.argmax(q2_net, dim=1)
             q2_max = slice_tensor_tensor(q2, a_max)
         else:
-            q2_max = K.max(q2, axis=1)
-        
+            q2_max = torch.max(q2, dim=1)
+
         # over-estimation correction
         if len(self.bootstrap_corr) > 0:
             q2_max -= (q2_max - np.float32(self.bootstrap_corr[1])) * (q2_max > self.bootstrap_corr[1])
             q2_max -= (q2_max - np.float32(self.bootstrap_corr[0])) * (q2_max < self.bootstrap_corr[0])
 
-        targets = r + (np.float32(1) - t) * self.gamma * q2_max
+        targets = r + (1 - t.float()) * self.gamma * q2_max
 
         # Loss and Updates
-        cost = clipped_sum_error(y_true=targets, y_pred=preds)
-        optimizer = RMSprop(lr=self.learning_rate, rho=.95, epsilon=1e-7)
-        updates = optimizer.get_updates(params=self.network.trainable_weights, loss=cost, constraints={})
+        loss = clipped_sum_error(y_true=targets, y_pred=preds)
 
-        # Update Target Network
-        target_updates = []
-        for target_weight, network_weight in zip(self.target_network.trainable_weights, self.network.trainable_weights):
-            target_updates.append(K.update(target_weight, network_weight))
+        return loss
 
-        # Compiled Functions
-        self._train_on_batch = K.function(inputs=[s, a, r, s2, t], outputs=[cost], updates=updates)
-        self.predict_network = K.function(inputs=[s], outputs=[q])
-        self.predict_target = K.function(inputs=[s2], outputs=[q2])
-        self.update_weights = K.function(inputs=[], outputs=[], updates=target_updates)
+    def buffer_to(self, buffer_):
+        if isinstance(buffer_, torch.Tensor):
+            return buffer_.to(self.device)
 
     def get_q(self, states, target):
-        states = self._reshape(states)
+        states = torch.tensor(self._reshape(states))
+        states = self.buffer_to(states)
         if not target:
-            return self.predict_network([states])[0]
+            return self.predict_network(states)
         else:
-            return self.predict_target([states])[0]
+            return self.predict_target(states)
 
     def get_max_action(self, states, target):
-        states = self._reshape(states)
+        states = torch.tensor(self._reshape(states))
+        states = self.buffer_to(states)
         if not target:
-            return np.argmax(self.predict_network([states])[0], axis=1)
+            return np.argmax(self.predict_network(states)[0], axis=1)
         else:
-            return np.argmax(self.predict_target([states])[0], axis=1)
+            return np.argmax(self.predict_target(states)[0], axis=1)
 
     def get_safe_actions(self, states, target, q_threshold):
         q = self.get_q(states, target)[0]
@@ -117,7 +110,7 @@ class AI(object):
     
     def get_secure_uniform_action(self, s):
         # Uniform and secure (presumption of innocence)
-        q = self.get_q(s, target=False)[0].astype(np.float64)
+        q = self.get_q(s, target=False).to("cpu").detach().numpy().astype(np.float64)
         q[q < -1] = -1.0
         q[q > 0] = 0.0
         if all(abs(q + 1) < 0.01):  # if all values are -1
@@ -128,7 +121,7 @@ class AI(object):
             return int(np.where(selector == 1)[0])
 
     def get_safe_max_actions(self, states, target, q_threshold):
-        q = self.get_q(states, target)[0]
+        q = self.get_q(states, target).to("cpu").detach().numpy().astype(np.float64)
         safe_q = q[q > q_threshold]
         if len(safe_q) > 0:
             actions = np.where(q == np.max(safe_q))[0]
@@ -139,7 +132,7 @@ class AI(object):
     def train_on_batch(self, s, a, r, s2, t):
         if self.action_dim == 1:
             a = a.flatten()
-        return self._train_on_batch([s, a, r, s2, t])
+        return self._train_on_batch(s, a, r, s2, t)
 
     def target_network_update(self):
         # updates the target network to the main network weights
@@ -162,7 +155,12 @@ class AI(object):
             r[-1] = r_1
             s2[-1] = s2_1
             term[-1] = term_1
+        s, a, r, s2, term = self.to_device((s, a, r, s2, term))
+        self.optimizer.zero_grad()
+        # TODO: make s, a, r, s2, term as tensor
         objective = self.train_on_batch(s, a, r, s2, term)
+        objective.backward()
+        self.optimizer.step()
         # updating target network
         if self.update_counter == self.update_freq:
             self.target_network_update()
@@ -170,6 +168,24 @@ class AI(object):
         else:
             self.update_counter += 1
         return objective
+
+    def to_device(self, buffer_):
+        """Call method ``method_name(*args, **kwargs)`` on all contents of
+        ``buffer_``, and return the results. ``buffer_`` can be an arbitrary
+        structure of tuples, namedtuples, namedarraytuples, NamedTuples, and
+        NamedArrayTuples, and a new, matching structure will be returned.
+        ``None`` fields remain ``None``.
+        """
+        if buffer_ is None:
+            return
+        if isinstance(buffer_, np.ndarray):
+            return torch.from_numpy(buffer_).to(self.device)
+        if isinstance(buffer_, torch.Tensor):
+            return buffer_.to(self.device)
+        contents = tuple(self.to_device(b) for b in buffer_)
+        if type(buffer_) is tuple:
+            return contents
+        return buffer_._make(contents)
 
     def dump_network(self, weights_file_path='q_network_weights.h5', overwrite=True):
         self.network.save_weights(weights_file_path, overwrite=overwrite)
@@ -187,4 +203,9 @@ class AI(object):
 
     @staticmethod
     def weight_transfer(from_model, to_model):
-        to_model.set_weights(deepcopy(from_model.get_weights()))
+        """Update the state dict of ``model`` using the input ``state_dict``, which
+        must match format.  ``tau==1`` applies hard update, copying the values, ``0<tau<1``
+        applies soft update: ``tau * new + (1 - tau) * old``.
+        """
+        state_dict = from_model.state_dict()
+        to_model.load_state_dict(state_dict)
