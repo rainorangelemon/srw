@@ -7,7 +7,9 @@ from dqn_secure.model import AtariDqnModel
 import torch
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 # use RMSProp
 
@@ -33,7 +35,7 @@ class AI(object):
         self.rewarding_transitions = []
         self.ddqn = ddqn
         self.bootstrap_corr = bootstrap_corr
-        self.device = device
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if not no_network:
             self.network = self._build_network()
             self.target_network = self._build_network()
@@ -43,12 +45,11 @@ class AI(object):
             self.target_network = None
         self.optimizer = torch.optim.RMSprop(self.network.parameters(), lr=self.learning_rate, alpha=.95, eps=1e-7)
         self._compile_learning()
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         logger.warning('Compiled Model and Learning.')
 
     def _build_network(self):
         """ returns the keras nn compiled model """
-        return AtariDqnModel(self.state_shape, self.nb_actions)
+        return AtariDqnModel(self.state_shape, self.nb_actions).to(self.device)
 
     def _compile_learning(self):
 
@@ -107,7 +108,7 @@ class AI(object):
         q = self.get_q(states, target)[0]
         q = q > q_threshold
         return np.where(q == True)[0]  # could be empty
-    
+
     def get_secure_uniform_action(self, s):
         # Uniform and secure (presumption of innocence)
         q = self.get_q(s, target=False).to("cpu").detach().numpy().astype(np.float64)
