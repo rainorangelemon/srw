@@ -100,9 +100,9 @@ class AI(object):
         states = torch.tensor(self._reshape(states))
         states = self.buffer_to(states)
         if not target:
-            return np.argmax(self.predict_network(states)[0], axis=1)
+            return np.argmax(self.predict_network(states).cpu().detach().numpy())
         else:
-            return np.argmax(self.predict_target(states)[0], axis=1)
+            return np.argmax(self.predict_target(states).cpu().detach().numpy())
 
     def get_safe_actions(self, states, target, q_threshold):
         q = self.get_q(states, target)[0]
@@ -111,7 +111,7 @@ class AI(object):
 
     def get_secure_uniform_action(self, s):
         # Uniform and secure (presumption of innocence)
-        q = self.get_q(s, target=False).to("cpu").detach().numpy().astype(np.float64)
+        q = self.get_q(s, target=False).cpu().detach().numpy().astype(np.float64)
         q[q < -1] = -1.0
         q[q > 0] = 0.0
         if all(abs(q + 1) < 0.01):  # if all values are -1

@@ -189,7 +189,7 @@ class DQNExperiment(object):
             else:
                 action = self.rng.randint(self.env.nb_actions)
         else:  # safe greedy action
-            action = self.ai.get_max_action(states=self.last_state, target=False)[0]
+            action = self.ai.get_max_action(states=self.last_state, target=False)
             if self.max_secure: # uses theorem 3 to also assert threshold 
                 actions = self.ai_explore.get_secure_actions(self.last_state, target=False, q_threshold=self.q_threshold)
                 if action not in actions and len(actions) > 0:
