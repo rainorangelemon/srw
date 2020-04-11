@@ -82,6 +82,7 @@ def run():
                             replay_buffer=replay_buffer_explore, bootstrap_corr=[-1, 0], rng=random_state)
         else:
             ai_explore = None
+
         if params['test']:  # note to pass correct folder name
             network_weights_dir = os.path.join(os.getcwd(), 'results', params['folder_name'])
             ai.load_weights(weights_file_path=network_weights_dir+'/q_network_weights.h5')
