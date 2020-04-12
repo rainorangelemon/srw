@@ -203,11 +203,12 @@ class DQNExperiment(object):
         # NOTE: `game_over` controls when episode is done,
         #       `explore/exploit_term` specify respectively terminal states for explore and exploit AI's.
         exploit_term = game_over
-        explore_term = False
-        explore_reward = 0.0
         if info.lost_life or reward < 0:
             explore_reward = -1.0
             explore_term = True
+        else:
+            explore_reward = 0.0
+            explore_term = False
         if reward > 0:
             self.goal_ += 1
         if reward > 0 or explore_reward < 0:

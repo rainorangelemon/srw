@@ -26,7 +26,7 @@ annealing_start: 2000000   # 8 epochs of fully secure rw to train explore AI
 annealing_steps: 1000000
 
 secure: True  # secure exploration
-max_secure: False  # to use `q_threshold` on greedy actions
+max_secure: True  # to use `q_threshold` on greedy actions
 q_threshold: -0.4
 exploration_learning_steps: 2000000
 exploit_network_size: 'large'

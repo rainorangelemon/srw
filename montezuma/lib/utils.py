@@ -117,7 +117,7 @@ class ExperienceReplay(object):
                 t = self.terms.take(transition_index, mode='wrap')
                 s2 = self.states.take(next_state_indices, mode='wrap', axis=0)
                 sample_success = True
-        # check the shape of s, a, ... should be (4, 104, 80)
+
         return s, a, r, s2, t
 
     def add(self, s, a, r, t):
