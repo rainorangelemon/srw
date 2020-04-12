@@ -191,7 +191,7 @@ class DQNExperiment(object):
         else:  # safe greedy action
             action = self.ai.get_max_action(states=self.last_state, target=False)
             if self.max_secure: # uses theorem 3 to also assert threshold 
-                actions = self.ai_explore.get_secure_actions(self.last_state, target=False, q_threshold=self.q_threshold)
+                actions = self.ai_explore.get_safe_actions(self.last_state, target=False, q_threshold=self.q_threshold)
                 if action not in actions and len(actions) > 0:
                     action = self.rng.choice(actions)  # prevents unsafe greedy actions
 
