@@ -29,9 +29,6 @@ def run():
         print(key, params[key])
     print('\n')
 
-    # TODO: clean this for distribution, this is only a workaround for Colab, since it cannot take very large numpy array
-    params['replay_max_size']=100000
-
     np.random.seed(seed=params['random_seed'])
     random_state = np.random.RandomState(params['random_seed'])
 

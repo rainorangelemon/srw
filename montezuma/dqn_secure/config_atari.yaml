@@ -33,7 +33,7 @@ exploit_network_size: 'large'
 explore_network_size: 'large'
 exploit_rewarding_buffer_size: 20
 explore_rewarding_buffer_size: 200
-use_exploit_btstrap_corr: False
+use_exploit_btstrap_corr: True  # use bootstrap correction for exploitation. this is a critical parameter for improvement.
 use_expl_inc: False
 ddqn: True
 gamma: 0.99
