@@ -107,6 +107,7 @@ class AI(object):
     def get_safe_actions(self, states, target, q_threshold):
         q = self.get_q(states, target)
         q = q > q_threshold
+        q = q.cpu().detach().numpy()
         return np.where(q == True)[0]  # could be empty
 
     def get_secure_uniform_action(self, s):

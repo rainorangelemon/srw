@@ -29,6 +29,9 @@ def run():
         print(key, params[key])
     print('\n')
 
+    # TODO: clean this for distribution, this is only a workaround for Colab, since it cannot take very large numpy array
+    params['replay_max_size']=250000
+
     np.random.seed(seed=params['random_seed'])
     random_state = np.random.RandomState(params['random_seed'])
 
@@ -55,7 +58,7 @@ def run():
                                                  state_shape=env.observation_space.shape, action_dim=params['action_dim'],
                                                  reward_dim=params['reward_dim'])
         if params['use_exploit_btstrap_corr'] == True:
-            btstrap_corr = [0, 100]
+            btstrap_corr = [-1, 1]
         else:
             btstrap_corr = []
 
