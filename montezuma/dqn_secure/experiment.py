@@ -71,7 +71,7 @@ class DQNExperiment(object):
                 if epoch % 10 == 0:
                     self.ai.dump_network(weights_file_path=self.folder_name + '/ai/q_network_weights_' + str(epoch) + '.h5',
                                          overwrite=True)
-                    if self.secure and self.exploration_learning:
+                    if self.secure:
                         self.ai_explore.dump_network(weights_file_path=self.folder_name + '/ai/q_explore_network_weights_' +
                                                                    str(epoch) + '.h5', overwrite=True)
                 # all_rewards.append(eval_scores / eval_episodes)
