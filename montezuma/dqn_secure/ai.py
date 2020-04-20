@@ -92,7 +92,7 @@ class AI(object):
         states = torch.tensor(self._reshape(states))
         states = self.buffer_to(states)
         if not target:
-            return self.predict_network(states)
+            return self.predict_network(states).cpu().detach().numpy()
         else:
             return self.predict_target(states)
 
@@ -107,12 +107,11 @@ class AI(object):
     def get_safe_actions(self, states, target, q_threshold):
         q = self.get_q(states, target)
         q = q > q_threshold
-        q = q.cpu().detach().numpy()
         return np.where(q == True)[0]  # could be empty
 
     def get_secure_uniform_action(self, s):
         # Uniform and secure (presumption of innocence)
-        q = self.get_q(s, target=False).cpu().detach().numpy().astype(np.float64)
+        q = self.get_q(s, target=False)
         q[q < -1] = -1.0
         q[q > 0] = 0.0
         if all(abs(q + 1) < 0.01):  # if all values are -1
@@ -193,7 +192,7 @@ class AI(object):
         torch.save(self.network.state_dict(), weights_file_path)
 
     def load_weights(self, weights_file_path='q_network_weights.h5', target=False):
-        self.network.load_state_dict(torch.load(weights_file_path))
+        self.network.load_state_dict(torch.load(weights_file_path, map_location=self.device))
         if target:
             self.target_network_update()
 

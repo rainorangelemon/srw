@@ -83,11 +83,8 @@ def run():
         else:
             ai_explore = None
 
-        if params['test']:  # note to pass correct folder name
-            network_weights_dir = os.path.join(os.getcwd(), 'results', params['folder_name'])
-            ai.load_weights(weights_file_path=network_weights_dir+'/q_network_weights.h5')
-            if params['secure'] == True:
-                ai_explore.load_weights(weights_file_path=network_weights_dir + '/q_explore_network_weights.h5')
+        ai.load_weights(weights_file_path='../results/colab/q_network_weights_30.h5')
+        ai_explore.load_weights(weights_file_path='../results/colab/q_explore_network_weights_30.h5')
 
         expt = DQNExperiment(env=env, ai=ai, ai_explore=ai_explore, episode_max_len=params['episode_max_len'],
                              history_len=params['history_len'], max_start_nullops=params['max_start_nullops'],
@@ -100,7 +97,8 @@ def run():
                              q_threshold=params['q_threshold'], secure=params['secure'], max_secure=params['max_secure'],
                              ai_rewarding_buffer_size=params['exploit_rewarding_buffer_size'],
                              ai_explore_rewarding_buffer_size=params['explore_rewarding_buffer_size'],
-                             exploration_learning_steps=params['exploration_learning_steps'])
+                             exploration_learning_steps=params['exploration_learning_steps'],
+                             exploration_learning=params['exploration_learning'])
         env.reset()
         if not params['test']:
             with open(expt.folder_name + '/config.yaml', 'w') as y:
@@ -116,7 +114,9 @@ def run():
             if params['human']:
                 expt.do_human_episode()
             else:
-                expt.evaluate(number=5)
+                while True:
+                    if expt.evaluate(number=20, explore=False) >= 1:
+                        break
 
 
 if __name__ == '__main__':

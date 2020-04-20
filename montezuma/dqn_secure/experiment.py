@@ -4,6 +4,7 @@ from copy import deepcopy
 import numpy as np
 import logging
 from lib.utils import Font, write_to_csv, plot
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class DQNExperiment(object):
                  replay_min_size=0, score_window_size=100, folder_location='/experiments/', folder_name='expt',
                  epsilon=1.0, annealing=True, final_epsilon=0.1, annealing_start=1, annealing_steps=10000,
                  secure=False, max_secure=False, ai_rewarding_buffer_size=20, ai_explore_rewarding_buffer_size=100,
-                 exploration_learning_steps=1000000, use_expl_inc=False, testing=False, rng=None):
+                 exploration_learning_steps=1000000, exploration_learning=True, use_expl_inc=False, testing=False, rng=None):
         self.rng = rng
         self.q_threshold = q_threshold
         self.fps = 0
@@ -32,7 +33,7 @@ class DQNExperiment(object):
         self.ai_rewarding_buffer_size = ai_rewarding_buffer_size
         self.ai_explore_rewarding_buffer_size = ai_explore_rewarding_buffer_size
         self.exploration_learning_steps = exploration_learning_steps
-        self.exploration_learning = True
+        self.exploration_learning = exploration_learning
         self.use_expl_inc = use_expl_inc
         self.history_len = history_len
         self.annealing = annealing
@@ -111,9 +112,9 @@ class DQNExperiment(object):
         term = False
         while not term:
             self.last_episode_steps += 1
-            prev_lives = self.env.get_lives()
+            prev_lives = self.env.ale.lives()
             print('='*50)
-            q = self.ai.get_q(self.last_state, target=False)[0]
+            q = self.ai.get_q(self.last_state, target=False)
             q_max = np.max(q)
             argmax_q = np.where(q == q_max)[0]
             q_text = ''
@@ -128,14 +129,16 @@ class DQNExperiment(object):
             print(Font.bold + Font.yellow + 'Greedy action >>  ' + str(argmax_q) + Font.end)
             if self.secure:
                 print(Font.bold + Font.cyan + 'Explore Q >> ' + Font.end,
-                      self.ai_explore.get_q(self.last_state, target=False)[0])
+                      self.ai_explore.get_q(self.last_state, target=False))
+            plt.imshow(self.last_state[-1])
+            plt.show()
             action = input('action >> ')
             if action == '':
                 continue
             if action == 'q':
                 return 0
             action = int(action)
-            if action >= self.env.nb_actions:
+            if action >= self.env.action_space.n:
                 logger.warning('Unknown action.')
                 continue
             new_obs, reward, game_over, _ = self.env.step(action)

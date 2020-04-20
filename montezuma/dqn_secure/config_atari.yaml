@@ -8,7 +8,7 @@ random_seed: 5678
 
 num_experiments: 1
 num_epochs: 200
-is_learning: True
+is_learning: False
 steps_per_epoch: 250000
 max_start_nullops: 30
 is_testing: True
@@ -16,7 +16,7 @@ steps_per_test: 1000  # 125000
 episode_max_len: 8000
 folder_location: './results/'
 folder_name: 'secure_dqn_'
-test: False
+test: True
 human: False
 
 epsilon: 1.0
@@ -29,6 +29,7 @@ secure: True  # secure exploration
 max_secure: True  # to use `q_threshold` on greedy actions
 q_threshold: -0.4
 exploration_learning_steps: 2000000
+exploration_learning: False
 exploit_network_size: 'large'
 explore_network_size: 'large'
 exploit_rewarding_buffer_size: 20
