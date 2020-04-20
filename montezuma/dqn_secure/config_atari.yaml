@@ -8,7 +8,7 @@ random_seed: 5678
 
 num_experiments: 1
 num_epochs: 200
-is_learning: False
+is_learning: True
 steps_per_epoch: 250000
 max_start_nullops: 30
 is_testing: True
@@ -16,7 +16,7 @@ steps_per_test: 1000  # 125000
 episode_max_len: 8000
 folder_location: './results/'
 folder_name: 'secure_dqn_'
-test: True
+test: False
 human: False
 
 epsilon: 1.0
